@@ -1,0 +1,1048 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AI 智能股票评测系统</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  :root {
+    --bg-primary: #0a0e1a;
+    --bg-secondary: #131829;
+    --bg-card: #1a2035;
+    --bg-card-hover: #222a45;
+    --border: #2a3150;
+    --text-primary: #e8ecf5;
+    --text-secondary: #8b93a8;
+    --accent: #4f8cff;
+    --green: #26a69a;
+    --red: #ef5350;
+    --gold: #ffb300;
+    --shadow: 0 4px 24px rgba(0,0,0,0.4);
+  }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+    background: var(--bg-primary);
+    color: var(--text-primary);
+    min-height: 100vh;
+    line-height: 1.6;
+  }
+  /* Header */
+  .header {
+    background: linear-gradient(135deg, #0f1525 0%, #1a2540 100%);
+    border-bottom: 1px solid var(--border);
+    padding: 24px 0;
+    position: sticky;
+    top: 0;
+    z-index: 100;
+    backdrop-filter: blur(10px);
+  }
+  .header-inner {
+    max-width: 1400px;
+    margin: 0 auto;
+    padding: 0 24px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 16px;
+  }
+  .logo {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+  .logo-icon {
+    width: 40px; height: 40px;
+    background: linear-gradient(135deg, #4f8cff, #6f5cff);
+    border-radius: 10px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 22px;
+  }
+  .logo-text h1 { font-size: 20px; font-weight: 700; }
+  .logo-text p { font-size: 12px; color: var(--text-secondary); }
+
+  .search-box {
+    display: flex;
+    gap: 10px;
+    flex: 1;
+    max-width: 560px;
+    min-width: 280px;
+  }
+  .search-box input {
+    flex: 1;
+    padding: 12px 16px;
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    color: var(--text-primary);
+    font-size: 15px;
+    outline: none;
+    transition: all 0.2s;
+  }
+  .search-box input:focus {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px rgba(79,140,255,0.15);
+  }
+  .search-box input::placeholder { color: var(--text-secondary); }
+  .search-box button {
+    padding: 12px 28px;
+    background: linear-gradient(135deg, #4f8cff, #6f5cff);
+    border: none;
+    border-radius: 10px;
+    color: white;
+    font-size: 15px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+    display: flex; align-items: center; gap: 8px;
+  }
+  .search-box button:hover { transform: translateY(-1px); box-shadow: 0 4px 16px rgba(79,140,255,0.4); }
+  .search-box button:active { transform: translateY(0); }
+  .search-box button:disabled { opacity: 0.6; cursor: not-allowed; transform: none; }
+
+  /* Main */
+  .main {
+    max-width: 1400px;
+    margin: 0 auto;
+    padding: 24px;
+  }
+
+  /* Welcome */
+  .welcome {
+    text-align: center;
+    padding: 80px 20px;
+    color: var(--text-secondary);
+  }
+  .welcome-icon { font-size: 72px; margin-bottom: 20px; }
+  .welcome h2 { font-size: 28px; color: var(--text-primary); margin-bottom: 12px; }
+  .welcome p { font-size: 16px; max-width: 500px; margin: 0 auto; }
+  .welcome-tips {
+    margin-top: 30px;
+    display: flex; gap: 12px; justify-content: center; flex-wrap: wrap;
+  }
+  .tip-chip {
+    padding: 6px 14px;
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    font-size: 13px;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+  .tip-chip:hover { border-color: var(--accent); color: var(--accent); }
+
+  /* Stock Overview */
+  .stock-overview {
+    background: linear-gradient(135deg, #1a2035 0%, #151a2e 100%);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 24px;
+    margin-bottom: 20px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 20px;
+  }
+  .stock-info { display: flex; align-items: center; gap: 20px; }
+  .stock-name { font-size: 28px; font-weight: 700; }
+  .stock-code { font-size: 15px; color: var(--text-secondary); margin-top: 4px; }
+  .stock-price { text-align: right; }
+  .stock-price .price { font-size: 36px; font-weight: 700; }
+  .stock-price .change { font-size: 16px; margin-top: 4px; }
+  .up { color: var(--red); }
+  .down { color: var(--green); }
+
+  /* Score Section */
+  .score-section {
+    background: linear-gradient(135deg, #1a2035 0%, #151a2e 100%);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 28px;
+    margin-bottom: 20px;
+    display: grid;
+    grid-template-columns: auto 1fr;
+    gap: 40px;
+    align-items: center;
+  }
+  .score-display {
+    text-align: center;
+    min-width: 200px;
+  }
+  .score-circle {
+    width: 180px; height: 180px;
+    border-radius: 50%;
+    background: conic-gradient(var(--accent) 0deg, var(--accent) 0deg, var(--bg-card) 0deg);
+    display: flex; align-items: center; justify-content: center;
+    margin: 0 auto 16px;
+    position: relative;
+    transition: background 1s ease;
+  }
+  .score-circle::before {
+    content: '';
+    position: absolute;
+    inset: 12px;
+    background: var(--bg-primary);
+    border-radius: 50%;
+  }
+  .score-value {
+    position: relative;
+    z-index: 1;
+    font-size: 56px;
+    font-weight: 800;
+  }
+  .score-label { font-size: 14px; color: var(--text-secondary); margin-bottom: 8px; }
+  .score-rating {
+    display: inline-block;
+    padding: 6px 18px;
+    border-radius: 20px;
+    font-size: 16px;
+    font-weight: 700;
+  }
+  .rating-buy { background: rgba(239,83,80,0.15); color: var(--red); }
+  .rating-hold { background: rgba(255,179,0,0.15); color: var(--gold); }
+  .rating-sell { background: rgba(38,166,154,0.15); color: var(--green); }
+
+  .score-details h3 { font-size: 18px; margin-bottom: 16px; display: flex; align-items: center; gap: 8px; }
+  .score-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+    gap: 12px;
+  }
+  .score-item {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 14px;
+  }
+  .score-item .label { font-size: 12px; color: var(--text-secondary); margin-bottom: 6px; }
+  .score-item .value { font-size: 20px; font-weight: 700; }
+  .score-item .bar {
+    height: 4px;
+    background: var(--border);
+    border-radius: 2px;
+    margin-top: 8px;
+    overflow: hidden;
+  }
+  .score-item .bar-fill {
+    height: 100%;
+    border-radius: 2px;
+    background: linear-gradient(90deg, var(--accent), #6f5cff);
+    transition: width 0.8s ease;
+  }
+
+  /* Cards Grid */
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 20px;
+    margin-bottom: 20px;
+  }
+  .card {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 20px;
+    transition: all 0.2s;
+  }
+  .card:hover { border-color: #3a4470; }
+  .card-header {
+    display: flex; align-items: center; justify-content: space-between;
+    margin-bottom: 16px;
+  }
+  .card-title { font-size: 16px; font-weight: 600; display: flex; align-items: center; gap: 8px; }
+  .card-title .icon { font-size: 18px; }
+  .live-tag {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 2px 8px;
+    background: rgba(239,83,80,0.15);
+    color: var(--red);
+    border-radius: 10px;
+    font-size: 11px;
+    font-weight: 600;
+  }
+  .live-dot {
+    width: 6px; height: 6px;
+    background: var(--red);
+    border-radius: 50%;
+    animation: blink 1.2s infinite;
+  }
+  @keyframes blink {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.3; }
+  }
+  .update-time {
+    font-size: 12px;
+    color: var(--text-secondary);
+  }
+  .update-time::before {
+    content: '🕐 更新于 ';
+  }
+  .chart-container { position: relative; height: 260px; }
+
+  /* Data metrics */
+  .metrics-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 14px;
+  }
+  .metric {
+    background: var(--bg-primary);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 14px;
+  }
+  .metric-label { font-size: 12px; color: var(--text-secondary); margin-bottom: 6px; }
+  .metric-value { font-size: 20px; font-weight: 700; }
+  .metric-sub { font-size: 12px; color: var(--text-secondary); margin-top: 4px; }
+
+  /* Flow bars */
+  .flow-row {
+    display: flex; align-items: center; gap: 10px;
+    margin-bottom: 12px;
+  }
+  .flow-label { width: 70px; font-size: 13px; color: var(--text-secondary); }
+  .flow-bar-wrap { flex: 1; height: 24px; background: var(--bg-primary); border-radius: 6px; overflow: hidden; position: relative; }
+  .flow-bar {
+    height: 100%;
+    border-radius: 6px;
+    display: flex; align-items: center; justify-content: flex-end;
+    padding-right: 8px;
+    font-size: 12px; font-weight: 600;
+    transition: width 0.8s ease;
+  }
+  .flow-in { background: linear-gradient(90deg, rgba(239,83,80,0.3), var(--red)); }
+  .flow-out { background: linear-gradient(90deg, rgba(38,166,154,0.3), var(--green)); }
+
+  /* Auction */
+  .auction-info {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 12px;
+  }
+  .auction-item {
+    background: var(--bg-primary);
+    border-radius: 10px;
+    padding: 12px;
+  }
+  .auction-item .l { font-size: 12px; color: var(--text-secondary); }
+  .auction-item .v { font-size: 16px; font-weight: 600; margin-top: 4px; }
+
+  /* Finance */
+  .finance-table { width: 100%; border-collapse: collapse; font-size: 14px; }
+  .finance-table th, .finance-table td {
+    padding: 10px 12px; text-align: left;
+    border-bottom: 1px solid var(--border);
+  }
+  .finance-table th { color: var(--text-secondary); font-weight: 500; font-size: 13px; }
+  .finance-table td { font-weight: 500; }
+  .finance-table .pos { color: var(--red); }
+  .finance-table .neg { color: var(--green); }
+
+  /* AI Report */
+  .ai-report {
+    background: linear-gradient(135deg, rgba(79,140,255,0.08), rgba(111,92,255,0.08));
+    border: 1px solid rgba(79,140,255,0.3);
+    border-radius: 16px;
+    padding: 24px;
+    margin-bottom: 20px;
+  }
+  .ai-report h3 {
+    font-size: 18px; margin-bottom: 16px;
+    display: flex; align-items: center; gap: 8px;
+  }
+  .ai-report .tag {
+    display: inline-block; padding: 3px 10px;
+    background: rgba(79,140,255,0.2); color: var(--accent);
+    border-radius: 10px; font-size: 11px; font-weight: 600;
+    margin-left: 8px;
+  }
+  .report-text {
+    color: var(--text-primary);
+    font-size: 14px;
+    line-height: 1.9;
+  }
+  .report-text p { margin-bottom: 12px; }
+  .report-text .keyword { color: var(--accent); font-weight: 600; }
+  .report-text .risk { color: var(--gold); }
+
+  /* Loading */
+  .loading {
+    text-align: center;
+    padding: 60px 20px;
+    color: var(--text-secondary);
+  }
+  .spinner {
+    width: 48px; height: 48px;
+    border: 4px solid var(--border);
+    border-top-color: var(--accent);
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+    margin: 0 auto 16px;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  .full-width { grid-column: 1 / -1; }
+
+  .disclaimer {
+    text-align: center;
+    color: var(--text-secondary);
+    font-size: 12px;
+    padding: 20px;
+    border-top: 1px solid var(--border);
+    margin-top: 20px;
+  }
+
+  @media (max-width: 900px) {
+    .score-section { grid-template-columns: 1fr; gap: 24px; }
+    .grid { grid-template-columns: 1fr; }
+    .stock-overview { flex-direction: column; align-items: flex-start; }
+    .stock-price { text-align: left; }
+  }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div class="header-inner">
+    <div class="logo">
+      <div class="logo-icon">📈</div>
+      <div class="logo-text">
+        <h1>AI 智能股票评测系统</h1>
+        <p>基于多维数据的智能投资分析</p>
+      </div>
+    </div>
+    <div class="search-box">
+      <input type="text" id="stockInput" placeholder="输入股票代码，如 600519、000001、AAPL" />
+      <button id="searchBtn" onclick="searchStock()">🔍 AI 评测</button>
+    </div>
+  </div>
+</div>
+
+<div class="main" id="main">
+  <div class="welcome" id="welcome">
+    <div class="welcome-icon">🤖</div>
+    <h2>AI 智能股票评测</h2>
+    <p>输入股票代码，AI 将从技术面、资金面、基本面等多维度进行综合分析，给出投资评分与建议。</p>
+    <div class="welcome-tips">
+      <span class="tip-chip" onclick="quickSearch('600519')">贵州茅台 600519</span>
+      <span class="tip-chip" onclick="quickSearch('000001')">平安银行 000001</span>
+      <span class="tip-chip" onclick="quickSearch('300750')">宁德时代 300750</span>
+      <span class="tip-chip" onclick="quickSearch('AAPL')">苹果 AAPL</span>
+    </div>
+  </div>
+</div>
+
+<div class="disclaimer">
+  ⚠️ 本页面数据为模拟演示数据，仅供学习交流使用，不构成任何投资建议。股市有风险，投资需谨慎。
+</div>
+
+<script>
+// ============ 模拟数据生成（基于股票代码生成一致随机数） ============
+function seededRandom(seed) {
+  let s = 0;
+  for (let i = 0; i < seed.length; i++) s = (s * 31 + seed.charCodeAt(i)) >>> 0;
+  return function() {
+    s = (s * 1664525 + 1013904223) >>> 0;
+    return (s % 100000) / 100000;
+  };
+}
+
+const stockNames = {
+  '600519': '贵州茅台', '000001': '平安银行', '300750': '宁德时代',
+  '000858': '五粮液', '601318': '中国平安', '002594': '比亚迪',
+  '600036': '招商银行', '000333': '美的集团', '601012': '隆基绿能',
+  'AAPL': '苹果', 'TSLA': '特斯拉', 'MSFT': '微软', 'GOOGL': '谷歌'
+};
+
+function generateData(code) {
+  const rng = seededRandom(code.toUpperCase());
+  const name = stockNames[code.toUpperCase()] || (code.toUpperCase().startsWith('6') ? '沪市股票' : (code.toUpperCase().startsWith('0') || code.toUpperCase().startsWith('3') ? '深市股票' : 'Stock'));
+  const isUp = rng() > 0.45;
+  const basePrice = 10 + rng() * 490;
+  const changePct = (rng() * 6 - 2).toFixed(2);
+  const price = (basePrice * (1 + changePct / 100)).toFixed(2);
+
+  // 5日线数据（最近5个交易日收盘价）
+  const fiveDay = [];
+  let p = parseFloat(price) * (1 - changePct / 100);
+  for (let i = 0; i < 5; i++) {
+    p = p * (1 + (rng() - 0.48) * 0.04);
+    fiveDay.push(parseFloat(p.toFixed(2)));
+  }
+  fiveDay[4] = parseFloat(price);
+
+  // 月K线（最近30个交易日 OHLC）
+  const monthK = [];
+  let mp = parseFloat(price);
+  const dates = [];
+  const today = new Date();
+  for (let i = 29; i >= 0; i--) {
+    const d = new Date(today);
+    d.setDate(d.getDate() - i);
+    dates.push((d.getMonth() + 1) + '/' + d.getDate());
+    const open = mp * (1 + (rng() - 0.5) * 0.02);
+    const close = open * (1 + (rng() - 0.48) * 0.05);
+    const high = Math.max(open, close) * (1 + rng() * 0.02);
+    const low = Math.min(open, close) * (1 - rng() * 0.02);
+    monthK.push({
+      o: parseFloat(open.toFixed(2)),
+      h: parseFloat(high.toFixed(2)),
+      l: parseFloat(low.toFixed(2)),
+      c: parseFloat(close.toFixed(2))
+    });
+    mp = close;
+  }
+  monthK[29].c = parseFloat(price);
+
+  // 近3天交易量（万手）
+  const volumes = [
+    { day: '今日', vol: (rng() * 80 + 10).toFixed(2) },
+    { day: '昨日', vol: (rng() * 80 + 10).toFixed(2) },
+    { day: '前日', vol: (rng() * 80 + 10).toFixed(2) }
+  ];
+
+  // 换手率
+  const turnoverRate = (rng() * 8 + 0.3).toFixed(2);
+
+  // 主力资金流入（万元）
+  const mainInflow = (rng() - 0.45) * 50000;
+  const superLarge = (rng() - 0.4) * 30000;
+  const large = (rng() - 0.4) * 20000;
+  const medium = (rng() - 0.5) * 15000;
+  const small = (rng() - 0.5) * 10000;
+
+  // 开盘竞价
+  const auctionPrice = (parseFloat(price) * (1 + (rng() - 0.5) * 0.02)).toFixed(2);
+  const auctionChange = ((auctionPrice - fiveDay[3]) / fiveDay[3] * 100).toFixed(2);
+  const auctionVol = (rng() * 5000 + 500).toFixed(0);
+  const auctionAmount = (rng() * 5 + 0.5).toFixed(2);
+
+  // 财政营收（最近4个季度）
+  const quarters = ['2024Q4', '2025Q1', '2025Q2', '2025Q3'];
+  const finances = quarters.map((q, i) => {
+    const rev = (rng() * 200 + 50).toFixed(2);
+    const profit = (rev * (0.1 + rng() * 0.3)).toFixed(2);
+    const revYoy = (rng() * 40 - 10).toFixed(2);
+    const profitYoy = (rng() * 60 - 15).toFixed(2);
+    return { quarter: q, revenue: rev, profit, revYoy, profitYoy };
+  });
+
+  return {
+    code: code.toUpperCase(), name, price, changePct, isUp,
+    fiveDay, monthK, dates, volumes, turnoverRate,
+    mainInflow, superLarge, large, medium, small,
+    auctionPrice, auctionChange, auctionVol, auctionAmount,
+    finances
+  };
+}
+
+// ============ 打分逻辑 ============
+function calculateScore(d) {
+  let score = 50;
+  // 价格趋势
+  const trend = (d.fiveDay[4] - d.fiveDay[0]) / d.fiveDay[0];
+  score += trend * 200;
+  // 主力流入
+  score += (d.mainInflow / 50000) * 15;
+  // 换手率（适中为好）
+  const tr = parseFloat(d.turnoverRate);
+  if (tr > 1 && tr < 5) score += 8;
+  else if (tr > 10) score -= 10;
+  // 营收增长
+  const avgRevYoy = d.finances.reduce((s, f) => s + parseFloat(f.revYoy), 0) / 4;
+  score += avgRevYoy * 0.4;
+  // 利润增长
+  const avgProfitYoy = d.finances.reduce((s, f) => s + parseFloat(f.profitYoy), 0) / 4;
+  score += avgProfitYoy * 0.3;
+  // 限制范围 10-99
+  score = Math.max(10, Math.min(99, Math.round(score)));
+
+  const dimensions = {
+    technical: Math.max(10, Math.min(99, Math.round(50 + trend * 300 + (d.monthK[29].c > d.monthK[29].o ? 10 : -10)))),
+    capital: Math.max(10, Math.min(99, Math.round(50 + (d.mainInflow / 50000) * 30))),
+    turnover: Math.max(10, Math.min(99, Math.round(tr > 1 && tr < 5 ? 75 : tr < 1 ? 55 : 40))),
+    fundamental: Math.max(10, Math.min(99, Math.round(50 + avgRevYoy * 0.5 + avgProfitYoy * 0.4))),
+    momentum: Math.max(10, Math.min(99, Math.round(50 + parseFloat(d.auctionChange) * 3 + trend * 100)))
+  };
+
+  return { total: score, dimensions };
+}
+
+// ============ 图表绘制 ============
+let chart5, chartMonth, chartVol, chartFlow;
+
+function renderCharts(d) {
+  // 销毁旧图表
+  [chart5, chartMonth, chartVol, chartFlow].forEach(c => c && c.destroy());
+
+  // 5日线图
+  const ctx5 = document.getElementById('chart5');
+  chart5 = new Chart(ctx5, {
+    type: 'line',
+    data: {
+      labels: ['5日前', '4日前', '3日前', '2日前', '今日'],
+      datasets: [{
+        label: '收盘价',
+        data: d.fiveDay,
+        borderColor: '#4f8cff',
+        backgroundColor: 'rgba(79,140,255,0.12)',
+        fill: true,
+        tension: 0.35,
+        pointBackgroundColor: '#4f8cff',
+        pointRadius: 5,
+        pointHoverRadius: 7,
+        borderWidth: 2.5
+      }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { display: false } },
+      scales: {
+        x: { ticks: { color: '#8b93a8' }, grid: { color: 'rgba(42,49,80,0.5)' } },
+        y: { ticks: { color: '#8b93a8' }, grid: { color: 'rgba(42,49,80,0.5)' } }
+      }
+    }
+  });
+
+  // 月K线图（用 bar 模拟阴阳线）
+  const ctxMonth = document.getElementById('chartMonth');
+  const colors = d.monthK.map(k => k.c >= k.o ? '#ef5350' : '#26a69a');
+  chartMonth = new Chart(ctxMonth, {
+    type: 'bar',
+    data: {
+      labels: d.dates,
+      datasets: [{
+        label: '收盘价',
+        data: d.monthK.map(k => k.c),
+        backgroundColor: colors,
+        borderRadius: 2,
+        barPercentage: 0.7
+      }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { display: false }, tooltip: {
+        callbacks: {
+          label: ctx => {
+            const k = d.monthK[ctx.dataIndex];
+            return ['开: ' + k.o, '高: ' + k.h, '低: ' + k.l, '收: ' + k.c];
+          }
+        }
+      }},
+      scales: {
+        x: { ticks: { color: '#8b93a8', maxTicksLimit: 10 }, grid: { display: false } },
+        y: { ticks: { color: '#8b93a8' }, grid: { color: 'rgba(42,49,80,0.5)' } }
+      }
+    }
+  });
+
+  // 交易量
+  const ctxVol = document.getElementById('chartVol');
+  const volColors = ['#4f8cff', '#6f5cff', '#8b93a8'];
+  chartVol = new Chart(ctxVol, {
+    type: 'bar',
+    data: {
+      labels: d.volumes.map(v => v.day),
+      datasets: [{
+        label: '交易量(万手)',
+        data: d.volumes.map(v => v.vol),
+        backgroundColor: volColors,
+        borderRadius: 6
+      }]
+    },
+    options: {
+      indexAxis: 'y',
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { display: false } },
+      scales: {
+        x: { ticks: { color: '#8b93a8' }, grid: { color: 'rgba(42,49,80,0.5)' } },
+        y: { ticks: { color: '#8b93a8' }, grid: { display: false } }
+      }
+    }
+  });
+
+  // 主力资金流入（横向条形）
+  const ctxFlow = document.getElementById('chartFlow');
+  const flowData = [
+    { label: '超大单', val: d.superLarge },
+    { label: '大单', val: d.large },
+    { label: '中单', val: d.medium },
+    { label: '小单', val: d.small }
+  ];
+  chartFlow = new Chart(ctxFlow, {
+    type: 'bar',
+    data: {
+      labels: flowData.map(f => f.label),
+      datasets: [{
+        label: '净额(万元)',
+        data: flowData.map(f => f.val.toFixed(0)),
+        backgroundColor: flowData.map(f => f.val >= 0 ? '#ef5350' : '#26a69a'),
+        borderRadius: 6
+      }]
+    },
+    options: {
+      indexAxis: 'y',
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { display: false } },
+      scales: {
+        x: { ticks: { color: '#8b93a8' }, grid: { color: 'rgba(42,49,80,0.5)' } },
+        y: { ticks: { color: '#8b93a8' }, grid: { display: false } }
+      }
+    }
+  });
+}
+
+// ============ 渲染页面 ============
+function fmtMoney(v) {
+  const sign = v >= 0 ? '+' : '';
+  const abs = Math.abs(v);
+  if (abs >= 10000) return sign + (v / 10000).toFixed(2) + '亿';
+  return sign + v.toFixed(0) + '万';
+}
+
+function getRating(score) {
+  if (score >= 70) return { text: '建议买入', cls: 'rating-buy' };
+  if (score >= 50) return { text: '建议持有', cls: 'rating-hold' };
+  return { text: '建议观望', cls: 'rating-sell' };
+}
+
+function render(d, score) {
+  const rating = getRating(score.total);
+  const main = document.getElementById('main');
+  const dim = score.dimensions;
+
+  main.innerHTML = `
+    <!-- 股票概览 -->
+    <div class="stock-overview">
+      <div class="stock-info">
+        <div>
+          <div class="stock-name">${d.name}</div>
+          <div class="stock-code">${d.code}</div>
+        </div>
+      </div>
+      <div class="stock-price">
+        <div class="price ${d.isUp ? 'up' : 'down'}">¥${d.price}</div>
+        <div class="change ${d.isUp ? 'up' : 'down'}">${d.isUp ? '▲' : '▼'} ${d.changePct}%</div>
+      </div>
+    </div>
+
+    <!-- AI 评分 -->
+    <div class="score-section">
+      <div class="score-display">
+        <div class="score-circle" id="scoreCircle">
+          <div class="score-value" id="scoreValue">0</div>
+        </div>
+        <div class="score-label">AI 综合投资评分</div>
+        <div class="score-rating ${rating.cls}">${rating.text}</div>
+      </div>
+      <div class="score-details">
+        <h3>📊 多维度评分</h3>
+        <div class="score-grid">
+          <div class="score-item">
+            <div class="label">技术面</div>
+            <div class="value">${dim.technical}</div>
+            <div class="bar"><div class="bar-fill" style="width:${dim.technical}%"></div></div>
+          </div>
+          <div class="score-item">
+            <div class="label">资金面</div>
+            <div class="value">${dim.capital}</div>
+            <div class="bar"><div class="bar-fill" style="width:${dim.capital}%"></div></div>
+          </div>
+          <div class="score-item">
+            <div class="label">换手活跃度</div>
+            <div class="value">${dim.turnover}</div>
+            <div class="bar"><div class="bar-fill" style="width:${dim.turnover}%"></div></div>
+          </div>
+          <div class="score-item">
+            <div class="label">基本面</div>
+            <div class="value">${dim.fundamental}</div>
+            <div class="bar"><div class="bar-fill" style="width:${dim.fundamental}%"></div></div>
+          </div>
+          <div class="score-item">
+            <div class="label">动能</div>
+            <div class="value">${dim.momentum}</div>
+            <div class="bar"><div class="bar-fill" style="width:${dim.momentum}%"></div></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 图表区 -->
+    <div class="grid">
+      <div class="card">
+        <div class="card-header">
+          <div class="card-title"><span class="icon">📈</span>最近五日线图</div>
+        </div>
+        <div class="chart-container"><canvas id="chart5"></canvas></div>
+      </div>
+      <div class="card">
+        <div class="card-header">
+          <div class="card-title"><span class="icon">📊</span>月 K 线图（近30日）</div>
+        </div>
+        <div class="chart-container"><canvas id="chartMonth"></canvas></div>
+      </div>
+    </div>
+
+    <!-- 交易量 + 换手率 -->
+    <div class="grid">
+      <div class="card">
+        <div class="card-header">
+          <div class="card-title"><span class="icon">📦</span>近三天交易量</div>
+        </div>
+        <div class="chart-container"><canvas id="chartVol"></canvas></div>
+      </div>
+      <div class="card">
+        <div class="card-header">
+          <div class="card-title"><span class="icon">🔄</span>实时换手率 <span class="live-tag"><span class="live-dot"></span>实时</span></div>
+          <div class="update-time" id="updateTime">--</div>
+        </div>
+        <div class="metrics-grid">
+          <div class="metric">
+            <div class="metric-label">实时换手率</div>
+            <div class="metric-value ${parseFloat(d.turnoverRate) > 5 ? 'up' : ''}" id="liveTurnover">${d.turnoverRate}%</div>
+            <div class="metric-sub" id="turnoverStatus">${parseFloat(d.turnoverRate) > 5 ? '交投活跃' : parseFloat(d.turnoverRate) > 1 ? '交投正常' : '交投清淡'}</div>
+          </div>
+          <div class="metric">
+            <div class="metric-label">今日最高换手</div>
+            <div class="metric-value" id="turnoverHigh">${d.turnoverRate}%</div>
+            <div class="metric-sub">最高峰值</div>
+          </div>
+          <div class="metric">
+            <div class="metric-label">量比</div>
+            <div class="metric-value" id="liveVolRatio">${(0.5 + seededRandom(d.code+'2')() * 2).toFixed(2)}</div>
+            <div class="metric-sub">相对近5日均量</div>
+          </div>
+          <div class="metric">
+            <div class="metric-label">市盈率(PE)</div>
+            <div class="metric-value">${(10 + seededRandom(d.code+'3')() * 60).toFixed(2)}</div>
+            <div class="metric-sub">TTM</div>
+          </div>
+        </div>
+        <div style="margin-top:14px;padding:10px 14px;background:var(--bg-primary);border-radius:10px;font-size:12px;color:var(--text-secondary);display:flex;justify-content:space-between;align-items:center;">
+          <span id="turnoverChange">-- 较开盘</span>
+          <span style="color:var(--accent)">每 3 秒自动刷新</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- 主力流入 + 开盘竞价 -->
+    <div class="grid">
+      <div class="card">
+        <div class="card-header">
+          <div class="card-title"><span class="icon">💰</span>主力资金流入情况</div>
+          <span style="font-size:18px;font-weight:700" class="${d.mainInflow >= 0 ? 'up' : 'down'}">${fmtMoney(d.mainInflow)}</span>
+        </div>
+        <div class="chart-container" style="height:220px"><canvas id="chartFlow"></canvas></div>
+      </div>
+      <div class="card">
+        <div class="card-header">
+          <div class="card-title"><span class="icon">⏰</span>最近一天开盘竞价情况</div>
+        </div>
+        <div class="auction-info">
+          <div class="auction-item">
+            <div class="l">竞价价格</div>
+            <div class="v ${parseFloat(d.auctionChange) >= 0 ? 'up' : 'down'}">¥${d.auctionPrice}</div>
+          </div>
+          <div class="auction-item">
+            <div class="l">竞价涨跌幅</div>
+            <div class="v ${parseFloat(d.auctionChange) >= 0 ? 'up' : 'down'}">${d.auctionChange >= 0 ? '+' : ''}${d.auctionChange}%</div>
+          </div>
+          <div class="auction-item">
+            <div class="l">竞价成交量</div>
+            <div class="v">${d.auctionVol}手</div>
+          </div>
+          <div class="auction-item">
+            <div class="l">竞价成交额</div>
+            <div class="v">${d.auctionAmount}万</div>
+          </div>
+        </div>
+        <div style="margin-top:16px;padding:12px;background:var(--bg-primary);border-radius:10px;font-size:13px;color:var(--text-secondary);">
+          ${parseFloat(d.auctionChange) >= 2 ? '🔴 竞价高开，多头情绪较强' : parseFloat(d.auctionChange) <= -2 ? '🟢 竞价低开，空头情绪较强' : '⚪ 竞价平开，多空相对均衡'}
+        </div>
+      </div>
+    </div>
+
+    <!-- 财政营收 -->
+    <div class="card full-width" style="margin-bottom:20px;">
+      <div class="card-header">
+        <div class="card-title"><span class="icon">🏢</span>公司最近财政营收情况</div>
+      </div>
+      <div style="overflow-x:auto;">
+        <table class="finance-table">
+          <thead>
+            <tr>
+              <th>报告期</th>
+              <th>营业收入(亿)</th>
+              <th>同比增长</th>
+              <th>净利润(亿)</th>
+              <th>同比增长</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${d.finances.map(f => `
+              <tr>
+                <td>${f.quarter}</td>
+                <td>${f.revenue}</td>
+                <td class="${parseFloat(f.revYoy) >= 0 ? 'pos' : 'neg'}">${f.revYoy >= 0 ? '+' : ''}${f.revYoy}%</td>
+                <td>${f.profit}</td>
+                <td class="${parseFloat(f.profitYoy) >= 0 ? 'pos' : 'neg'}">${f.profitYoy >= 0 ? '+' : ''}${f.profitYoy}%</td>
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- AI 分析报告 -->
+    <div class="ai-report">
+      <h3>🤖 AI 智能分析报告 <span class="tag">已整理</span></h3>
+      <div class="report-text" id="aiReport">
+        ${generateReport(d, score)}
+      </div>
+    </div>
+  `;
+
+  // 渲染图表
+  setTimeout(() => renderCharts(d), 50);
+
+  // 动画显示评分
+  animateScore(score.total);
+
+  // 启动实时换手率更新
+  startLiveTurnover(d);
+}
+
+// 实时换手率更新
+let turnoverTimer = null;
+function startLiveTurnover(d) {
+  if (turnoverTimer) clearInterval(turnoverTimer);
+  const baseRate = parseFloat(d.turnoverRate);
+  let highRate = baseRate;
+  const openRate = baseRate * (0.8 + Math.random() * 0.4);
+
+  function update() {
+    const liveEl = document.getElementById('liveTurnover');
+    const highEl = document.getElementById('turnoverHigh');
+    const statusEl = document.getElementById('turnoverStatus');
+    const timeEl = document.getElementById('updateTime');
+    const changeEl = document.getElementById('turnoverChange');
+    const ratioEl = document.getElementById('liveVolRatio');
+    if (!liveEl) { clearInterval(turnoverTimer); turnoverTimer = null; return; }
+
+    // 在基准值附近 ±15% 随机波动
+    const rate = (baseRate * (0.85 + Math.random() * 0.3)).toFixed(2);
+    if (parseFloat(rate) > highRate) highRate = parseFloat(rate);
+
+    const r = parseFloat(rate);
+    liveEl.textContent = rate + '%';
+    liveEl.className = 'metric-value ' + (r > 5 ? 'up' : '');
+    highEl.textContent = highRate.toFixed(2) + '%';
+    statusEl.textContent = r > 5 ? '交投活跃' : r > 1 ? '交投正常' : '交投清淡';
+
+    const now = new Date();
+    timeEl.textContent = now.getHours().toString().padStart(2,'0') + ':' + now.getMinutes().toString().padStart(2,'0') + ':' + now.getSeconds().toString().padStart(2,'0');
+
+    const diff = ((r - openRate) / openRate * 100).toFixed(2);
+    const up = r >= openRate;
+    changeEl.innerHTML = (up ? '▲ +' : '▼ ') + diff + '% 较开盘';
+    changeEl.style.color = up ? 'var(--red)' : 'var(--green)';
+
+    if (ratioEl) ratioEl.textContent = (0.5 + Math.random() * 2).toFixed(2);
+  }
+
+  update();
+  turnoverTimer = setInterval(update, 3000);
+}
+
+function animateScore(target) {
+  const el = document.getElementById('scoreValue');
+  const circle = document.getElementById('scoreCircle');
+  let cur = 0;
+  const step = Math.max(1, Math.ceil(target / 30));
+  const timer = setInterval(() => {
+    cur = Math.min(cur + step, target);
+    el.textContent = cur;
+    const deg = (cur / 99) * 360;
+    circle.style.background = `conic-gradient(#4f8cff 0deg, #6f5cff ${deg}deg, #1a2035 ${deg}deg)`;
+    if (cur >= target) clearInterval(timer);
+  }, 30);
+}
+
+function generateReport(d, score) {
+  const trend = (d.fiveDay[4] - d.fiveDay[0]) / d.fiveDay[0] * 100;
+  const inflow = d.mainInflow >= 0;
+  const lastFinance = d.finances[3];
+  const avgRevYoy = d.finances.reduce((s, f) => s + parseFloat(f.revYoy), 0) / 4;
+
+  let report = `<p><strong>【技术面分析】</strong>近5个交易日该股${trend >= 0 ? '震荡上行' : '震荡下行'}，累计${trend >= 0 ? '上涨' : '下跌'} <span class="keyword">${Math.abs(trend).toFixed(2)}%</span>。`;
+  report += `月K线显示近期${d.monthK[29].c > d.monthK[25].c ? '均线多头排列，趋势向好' : '均线空头排列，需警惕回调'}。</p>`;
+
+  report += `<p><strong>【资金面分析】</strong>主力资金今日${inflow ? '净流入' : '净流出'} <span class="keyword">${fmtMoney(d.mainInflow)}</span>，`;
+  report += `超大单${d.superLarge >= 0 ? '净流入' : '净流出'}，${inflow ? '机构资金看好，支撑力度较强' : '机构资金离场，短期承压'}。</p>`;
+
+  report += `<p><strong>【基本面分析】</strong>${d.name}最近一期(${lastFinance.quarter})实现营收 <span class="keyword">${lastFinance.revenue}亿</span>，`;
+  report += `同比${parseFloat(lastFinance.revYoy) >= 0 ? '增长' : '下降'} ${Math.abs(lastFinance.revYoy)}%；`;
+  report += `净利润 ${lastFinance.profit}亿，同比${parseFloat(lastFinance.profitYoy) >= 0 ? '增长' : '下降'} ${Math.abs(lastFinance.profitYoy)}%。`;
+  report += avgRevYoy > 10 ? '公司成长性<span class="keyword">良好</span>。' : avgRevYoy > 0 ? '公司营收保持正增长。' : '<span class="risk">公司营收承压，需关注后续业绩拐点</span>。';
+  report += `</p>`;
+
+  report += `<p><strong>【交易活跃度】</strong>换手率 <span class="keyword">${d.turnoverRate}%</span>，`;
+  report += parseFloat(d.turnoverRate) > 5 ? '市场关注度高，交投活跃。' : parseFloat(d.turnoverRate) > 1 ? '交投活跃度适中。' : '交投相对清淡，需等待放量信号。';
+  report += `</p>`;
+
+  report += `<p><strong>【竞价信号】</strong>今日集合竞价涨跌幅 <span class="keyword">${d.auctionChange}%</span>，`;
+  report += parseFloat(d.auctionChange) >= 1 ? '竞价高开显示多头意愿较强。' : parseFloat(d.auctionChange) <= -1 ? '竞价低开反映市场情绪偏谨慎。' : '竞价平开，多空双方较为均衡。';
+  report += `</p>`;
+
+  const rating = getRating(score.total);
+  report += `<p><strong>【投资建议】</strong>综合以上分析，AI 给予该股 <span class="keyword">${score.total}分</span> 的投资评分，评级为 <span class="keyword">${rating.text}</span>。`;
+  report += score.total >= 70 ? '建议投资者可关注逢低布局机会。' : score.total >= 50 ? '建议持有观望，等待更明确信号。' : '<span class="risk">建议谨慎观望，注意控制仓位与风险。</span>';
+  report += `</p>`;
+
+  return report;
+}
+
+// ============ 搜索逻辑 ============
+function quickSearch(code) {
+  document.getElementById('stockInput').value = code;
+  searchStock();
+}
+
+function searchStock() {
+  const code = document.getElementById('stockInput').value.trim();
+  if (!code) { alert('请输入股票代码'); return; }
+
+  const btn = document.getElementById('searchBtn');
+  btn.disabled = true;
+  btn.innerHTML = '⏳ 分析中...';
+
+  const main = document.getElementById('main');
+  main.innerHTML = `
+    <div class="loading">
+      <div class="spinner"></div>
+      <p>AI 正在整理股票数据，请稍候...</p>
+      <p style="font-size:13px;margin-top:8px">正在获取：K线图 · 交易量 · 换手率 · 主力资金 · 竞价数据 · 财务报表</p>
+    </div>
+  `;
+
+  setTimeout(() => {
+    const data = generateData(code);
+    const score = calculateScore(data);
+    render(data, score);
+    btn.disabled = false;
+    btn.innerHTML = '🔍 AI 评测';
+  }, 1200);
+}
+
+// 回车搜索
+document.getElementById('stockInput').addEventListener('keypress', e => {
+  if (e.key === 'Enter') searchStock();
+});
+</script>
+</body>
+</html>
