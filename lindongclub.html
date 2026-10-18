@@ -345,21 +345,49 @@ main{padding-top:22px;padding-bottom:30px}
 /* ===== 常量与数据 ===== */
 var ACCOUNTS = { lingdong1: "lingdong2026", lingdong2: "lingdongadmin" };
 var LS_POSTS = "lwxs_posts_v1", LS_LIKED = "lwxs_liked_v1", LS_USER = "lwxs_user_v1";
+var SB_URL = "https://tktyedicanpsoovlsiqd.supabase.co";
+var SB_KEY = "sb_publishable_dv743brmPbO0k822yetEvA_kdoEytFN";
 
-var SEED_POSTS = [
-  { id:"seed-1", title:"雪落无声", author:"凛冬", type:"散文", isSample:true,
-    content:"雪落在深夜的窗前，无声。炉火将熄，书页上还留着上午读到的一半句子。我想，所谓冬天，大概就是让一切慢下来的季节——让句子等一个句号，让思念等一个归人。",
-    likes:16, createdAt:"2026-09-12T20:30:00+08:00" },
-  { id:"seed-2", title:"寒江独钓", author:"墨白", type:"诗歌", isSample:true,
-    content:"一竿风雪一竿秋，寒江之上月如钩。不问来路多少事，且钓孤舟万古愁。",
-    likes:23, createdAt:"2026-10-01T09:15:00+08:00" },
-  { id:"seed-3", title:"灯下书", author:"青灯", type:"随笔", isSample:true,
-    content:"夜里翻旧信，纸已泛黄，字迹仍清。写信的人远在千里，读信的人守在灯下。有些话不必寄出，写下来的那一刻，就已经被读过。",
-    likes:8, createdAt:"2026-10-10T22:40:00+08:00" },
-  { id:"seed-4", title:"山海来信", author:"南枝", type:"小说", isSample:true,
-    content:"第几天了？她把日历翻到最后一页，又倒回来。窗外山雾弥漫，邮差的车铃遥遥响起。她跑下台阶，接过那封没有署名的信——信里只有一句话：我在海的另一头，等你写完这个故事。",
-    likes:12, createdAt:"2026-10-15T18:05:00+08:00" }
-];
+/* ===== 云端数据层（Supabase，作品/点赞/删除实时同步） ===== */
+function sbHeaders(){
+  return { "apikey": SB_KEY, "Authorization": "Bearer " + SB_KEY,
+           "Content-Type": "application/json", "Accept": "application/json" };
+}
+function sbJson(method, path, body){
+  var opts = {
+    method: method,
+    headers: sbHeaders(),
+    body: (body === undefined) ? undefined : JSON.stringify(body)
+  };
+  if(method === "POST" || method === "PATCH" || method === "DELETE"){
+    opts.headers["Prefer"] = "return=representation";
+  }
+  return fetch(SB_URL + path, opts).then(function(r){
+    if(!r.ok){ return r.text().then(function(t){ throw new Error("云端返回 " + r.status + "：" + t.slice(0,120)); }); }
+    return r.text().then(function(t){
+      if(!t || !t.trim()) return null;
+      return JSON.parse(t);
+    });
+  });
+}
+function rowToPost(row){
+  return { id: row.id, title: row.title, author: row.author, type: row.category,
+           content: row.content, likes: row.likes, isSample: !!row.is_sample,
+           createdAt: row.created_at };
+}
+function cachePosts(){ try{ localStorage.setItem(LS_POSTS, JSON.stringify(posts)); }catch(e){} }
+function loadPosts(){
+  return sbJson("GET", "/rest/v1/works?select=id,title,author,category,content,likes,is_sample,created_at&order=created_at.desc")
+    .then(function(rows){
+      posts = (rows || []).map(rowToPost);
+      cachePosts();
+    })
+    .catch(function(err){
+      toast("云端连接失败，显示本地缓存");
+      try{ var raw = localStorage.getItem(LS_POSTS); if(raw) posts = JSON.parse(raw); }catch(e){}
+      if(!posts || !posts.length) posts = [];
+    });
+}
 
 var posts, likedSet, currentUser, query = "", activeType = "";
 var $ = function(id){ return document.getElementById(id); };
@@ -367,18 +395,7 @@ var esc = function(s){ return String(s).replace(/[&<>"']/g, function(c){
   return { "&":"&amp;", "<":"&lt;", ">":"&gt;", "\"":"&quot;", "'":"&#39;" }[c];
 });};
 
-/* ===== 持久化 ===== */
-function loadPosts(){
-  try{
-    var raw = localStorage.getItem(LS_POSTS);
-    if(raw){ posts = JSON.parse(raw); return; }
-  }catch(e){}
-  posts = SEED_POSTS.slice();
-  savePosts();
-}
-function savePosts(){
-  try{ localStorage.setItem(LS_POSTS, JSON.stringify(posts)); }catch(e){}
-}
+/* ===== 本地持久化（点赞记录与登录态；作品数据以云端为准） ===== */
 function loadLiked(){
   likedSet = new Set();
   try{
@@ -536,27 +553,37 @@ function syncDetail(){
   if(likeBtn){ likeBtn.classList.toggle("liked", liked); likeBtn.querySelector(".like-count").textContent = p.likes; }
 }
 
-/* ===== 点赞 ===== */
+/* ===== 点赞（同步到云端） ===== */
 function toggleLike(id){
   var p = null;
   posts.forEach(function(x){ if(x.id === id) p = x; });
   if(!p) return;
-  if(likedSet.has(id)){ likedSet.delete(id); p.likes = Math.max(0, p.likes - 1); }
-  else{ likedSet.add(id); p.likes += 1; }
-  saveLiked(); savePosts(); render(); syncDetail();
+  var willLike = !likedSet.has(id);
+  var newLikes = Math.max(0, p.likes + (willLike ? 1 : -1));
+  sbJson("PATCH", "/rest/v1/works?id=eq." + encodeURIComponent(id), { likes: newLikes })
+    .then(function(){
+      if(willLike){ likedSet.add(id); } else { likedSet.delete(id); }
+      p.likes = newLikes;
+      saveLiked(); cachePosts(); render(); syncDetail();
+    })
+    .catch(function(err){ toast("点赞失败：" + err.message); });
 }
 
-/* ===== 删除 ===== */
+/* ===== 删除（同步到云端） ===== */
 function deletePost(id){
   var p = null;
   posts.forEach(function(x){ if(x.id === id) p = x; });
   if(!p) return;
   if(!window.confirm("确定删除作品《" + p.title + "》吗？删除后不可恢复。")) return;
-  posts = posts.filter(function(x){ return x.id !== id; });
-  likedSet.delete(id);
-  savePosts(); saveLiked(); render();
-  if(currentDetailId === id) closeDetail();
-  toast("作品已删除");
+  sbJson("DELETE", "/rest/v1/works?id=eq." + encodeURIComponent(id))
+    .then(function(){
+      posts = posts.filter(function(x){ return x.id !== id; });
+      likedSet.delete(id);
+      saveLiked(); cachePosts(); render();
+      if(currentDetailId === id) closeDetail();
+      toast("作品已删除");
+    })
+    .catch(function(err){ toast("删除失败：" + err.message); });
 }
 
 /* ===== 发布 ===== */
@@ -575,16 +602,17 @@ function submitPost(){
   setErr("type", type ? "" : "请填写类型");
   setErr("content", content ? "" : "请填写正文");
   if(!title || !author || !type || !content) return;
-  posts.push({
-    id: "p" + Date.now() + Math.floor(Math.random()*1000),
-    title: title, author: author, type: type, content: content,
-    isSample: false, likes: 0, createdAt: new Date().toISOString()
-  });
-  savePosts();
-  $("postForm").reset();
-  ["title","author","type","content"].forEach(function(f){ setErr(f,""); });
-  showView("home");
-  toast("作品《" + title + "》已发布");
+  sbJson("POST", "/rest/v1/works", {
+    title: title, author: author, category: type, content: content,
+    likes: 0, is_sample: false
+  }).then(function(){
+    $("postForm").reset();
+    ["title","author","type","content"].forEach(function(f){ setErr(f,""); });
+    showView("home");
+    toast("作品《" + title + "》已发布");
+    return loadPosts();
+  }).then(function(){ render(); })
+    .catch(function(err){ toast("发布失败：" + err.message); });
 }
 
 /* ===== 事件绑定 ===== */
@@ -656,8 +684,9 @@ document.addEventListener("keydown", function(e){
 });
 
 /* ===== 初始化 ===== */
-loadPosts(); loadLiked(); loadUser();
-renderAuth(); refreshFab(); render();
+loadLiked(); loadUser();
+renderAuth(); refreshFab();
+loadPosts().then(function(){ render(); });
 })();
 </script>
 </body>
